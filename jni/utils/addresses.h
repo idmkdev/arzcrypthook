@@ -2,6 +2,11 @@
 
 #include <cstdint>
 
+struct LibraryInfo {
+    uintptr_t address;
+    char name[256];
+};
+
 template <size_t N>
 void* FindPattern(const char(&pattern)[N], uintptr_t start, size_t length) {
     const char* memory = static_cast<const char*>((void*)start);  
@@ -25,3 +30,4 @@ void* FindPattern(const char(&pattern)[N], uintptr_t start, size_t length) {
 
 size_t GetLibrarySize(const char* lib_name);
 uintptr_t FindLibrary(const char* library);
+LibraryInfo FindLibraryByPrefix(const char* library_prefix);

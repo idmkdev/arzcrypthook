@@ -8,8 +8,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <stdio.h>
 
-#define TAG "PacketHook"
+#include "utils/logging.h"
 #include "utils/armhook.h"
 #include "utils/addresses.h"
 
@@ -17,10 +18,6 @@
 #define HOOK_LIBRARY "libsamp.so"
 #define HOOK_PATTERN "\x48\x1C\x04\xBF"
 
-
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
-#define Log(...) LOGE(__VA_ARGS__)
 
 unsigned char sampEncrTable[256] = {
     0x27, 0x69, 0xFD, 0x87, 0x60, 0x7D, 0x83, 0x02, 0xF2, 0x3F, 0x71, 0x99, 0xA3, 0x7C, 0x1B, 0x9D,
@@ -62,7 +59,7 @@ void kyretardizeDatagram(unsigned char *buf, int len, int port, int unk) {
     }
 }
 
-signed int (*SocketLayer__SendTo)(int socket, int sockfd, int buffer, int length, int flags, unsigned int port) = nullptr;
+signed int (*SocketLayer__SendTo)(int socket, int sockfd, int buffer, int length, int ip_addr, unsigned int port) = nullptr;
 signed int SocketLayer__SendTo_Hook([[maybe_unused]] int socket, int sockfd, int buffer, int length, int ip_addr, unsigned int port) {
     if (sockfd == -1) {
         LOGI("Invalid socket descriptor");
@@ -97,24 +94,42 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
     }
     
     
-    LOGI("Initializing hooks...");
-    InitHookStuff(HOOK_LIBRARY);
-
+    LOGI("ARZCryptHook - packet hook loaded, build time: %s", __DATE__ " " __TIME__);
+    char libName[256] = {0};
     uintptr_t libHandle = FindLibrary(HOOK_LIBRARY);
     if(libHandle == 0)
     {
-        Log("Not found %s", HOOK_LIBRARY);
-        pid_t pid = getpid();
-        kill(pid, SIGKILL);
+        char prefix[256] = {0};
+        strncpy(prefix, HOOK_LIBRARY, sizeof(prefix) - 1);
+        char* dot = strrchr(prefix, '.');
+        if(dot) *dot = '\0';
+        LOGI("Not found %s, trying to find by prefix %s", HOOK_LIBRARY, prefix);
+        LibraryInfo libInfo = FindLibraryByPrefix(prefix);
+        if(libInfo.address == 0 || libInfo.name[0] == '\0')
+        {
+            Log("Not found %s or any library starting with %s", HOOK_LIBRARY, prefix);
+            pid_t pid = getpid();
+            kill(pid, SIGKILL);
+        }
+        LOGI("Found library by prefix at address: %x with name: %s", libInfo.address, libInfo.name);
+        libHandle = libInfo.address;
+        strncpy(libName, libInfo.name, sizeof(libName) - 1);
+        InitHookStuff(libName);
     }
+    else
+    {
+        strncpy(libName, HOOK_LIBRARY, sizeof(libName) - 1);
+        InitHookStuff(libName);
+    } 
 
-    void* func_addr = FindPattern(HOOK_PATTERN, libHandle, GetLibrarySize(HOOK_LIBRARY));   
+
+    void* func_addr = FindPattern(HOOK_PATTERN, libHandle, GetLibrarySize(libName));   
     if(func_addr)
     {
         SetUpHook(reinterpret_cast<uintptr_t>(func_addr), reinterpret_cast<uintptr_t>(SocketLayer__SendTo_Hook), reinterpret_cast<uintptr_t*>(&SocketLayer__SendTo));
         LOGI("Hooks installed successfully, address: %x", libHandle-(uintptr_t)func_addr);
     } else {
-        Log("Can't find offset from pattern");
+        LOGE("Can't find offset from pattern");
         pid_t pid = getpid();
         kill(pid, SIGKILL);
     }

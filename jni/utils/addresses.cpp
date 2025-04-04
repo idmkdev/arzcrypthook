@@ -13,13 +13,7 @@
 #include <cstdarg>
 #include <exception>
 #include "addresses.h"
-
-#ifndef TAG
-#define TAG "addresses"
-#endif
-
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
+#include "logging.h"
 
 
 
@@ -75,7 +69,6 @@ size_t GetLibrarySize(const char* lib_name) {
     while (fgets(buffer, sizeof(buffer), fp)) {
         if (strstr(buffer, lib_name)) {
             uintptr_t start_addr, end_addr;
-            LOGI("Found library entry: %s", buffer);
             if (sscanf(buffer, "%x-%x", &start_addr, &end_addr) == 2) {
                 if (start_addr < min_addr) min_addr = start_addr;
                 if (end_addr > max_addr) max_addr = end_addr;
@@ -95,3 +88,59 @@ size_t GetLibrarySize(const char* lib_name) {
 
     return lib_size;
 }
+
+LibraryInfo FindLibraryByPrefix(const char* library_prefix)
+{
+    LibraryInfo result;
+    result.address = 0;
+    memset(result.name, 0, sizeof(result.name));
+    
+    char filename[0xFF] = {0};
+    char buffer[2048] = {0};
+    FILE *fp = 0;
+    size_t prefix_len = strlen(library_prefix);
+
+    sprintf(filename, "/proc/%d/maps", getpid());
+
+    fp = fopen(filename, "rt");
+    if(fp == 0)
+    {
+        LOGE("ERROR: can't open file %s", filename);
+        goto done;
+    }
+
+    while(fgets(buffer, sizeof(buffer), fp))
+    {
+        char* lib_name = strrchr(buffer, '/');
+        if(lib_name)
+        {
+            lib_name++;
+            if(strncmp(lib_name, library_prefix, prefix_len) == 0)
+            {
+                result.address = (uintptr_t)strtoul(buffer, 0, 16);
+                
+                char* end = lib_name;
+                while (*end && *end >= 32 && *end != ' ') {
+                    end++;
+                }
+                
+                if (end > lib_name) {
+                    size_t name_len = end - lib_name;
+                    strncpy(result.name, lib_name, name_len);
+                    result.name[name_len] = '\0';
+                } else {
+                    LOGE("Invalid library name");
+                }
+                break;
+            }
+        }
+    }
+
+    done:
+    if(fp)
+        fclose(fp);
+
+    return result;
+}
+
+

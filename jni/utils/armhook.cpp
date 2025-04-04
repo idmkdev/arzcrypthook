@@ -12,14 +12,8 @@
 #include <sys/mman.h>
 #include <cstdarg>
 #include <exception>
+#include "logging.h"
 #include "utils/addresses.h"
-
-
-#ifndef TAG
-#define TAG "armhook"
-#endif
-
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
 
 
 #define HOOK_PROC "\x01\xB4\x01\xB4\x01\x48\x01\x90\x01\xBD\x00\xBF\x00\x00\x00\x00"
