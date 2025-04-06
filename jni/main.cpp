@@ -94,7 +94,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
     }
     
     
-    LOGI("ARZCryptHook - packet hook loaded, build time: %s", __DATE__ " " __TIME__);
+    LOGI("ARZCryptHook - packet hook loaded | Build time: %s", __DATE__ " " __TIME__);
+    LOGI("Source project on GitHub: https://github.com/idmkdev/arzcrypthook");
     char libName[256] = {0};
     uintptr_t libHandle = FindLibrary(HOOK_LIBRARY);
     if(libHandle == 0)
